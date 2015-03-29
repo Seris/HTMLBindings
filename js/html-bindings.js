@@ -1,26 +1,12 @@
-;"use strict";
-
 var htmlbindings = {};
 
-(function(){
+(function () {
+    "use strict";
+
     // Helpers
     var $ = document.querySelector.bind(document),
-        $$ = document.querySelectorAll.bind(document);
-
-    var gControllers = {};
-
-    htmlbindings.gControllers = gControllers;
-
-    /*==========  HTML Parsing  ==========*/
-    window.addEventListener("load", function(){
-        var doms = $$("[hb-controller]");
-
-        for (var i = doms.length - 1; i >= 0; i--) {
-            var ctrlName = doms[i].getAttribute("hb-controller");
-            init_controller(ctrlName, doms[i]);
-        }
-    });
-
+        $$ = document.querySelectorAll.bind(document),
+        gControllers = {};
 
 
     /*==========  Controller Management  ==========*/
@@ -29,15 +15,16 @@ var htmlbindings = {};
      * @param  {string}
      * @param  {function}
      */ 
-    htmlbindings.controller = function(name, controller){
-        if(gControllers[name])
+    htmlbindings.controller = function (name, controller) {
+        if (gControllers[name]){
             throw new Error("Controller already exist");
+        }
 
         gControllers[name] = new Controller(controller);
     };
 
-    function init_controller(ctrlName, dom){
-        if(!gControllers[ctrlName]){
+    function init_controller(ctrlName, dom) {
+        if (!gControllers[ctrlName]) {
             _throw("ControllerNotFound", ctrlName);
         }
 
@@ -47,7 +34,7 @@ var htmlbindings = {};
 
 
     /*==========  Controller  ==========*/
-    function Controller(controller){
+    function Controller(controller) {
         this.controller = controller;
         this.scope = {};
 
@@ -55,48 +42,49 @@ var htmlbindings = {};
         this.repeats = [];
     }
 
-    Controller.prototype.initVariable = function(variable){
-        if(!this.variables[variable]){
+    Controller.prototype.initVariable = function (variable) {
+        if (!this.variables[variable]) {
             this.variables[variable] = [];
         }
     };
 
-    Controller.prototype.getVariable = function(variableStr){
-        var path = variableStr.split("."), variable = this.scope;
-        try {
-            for (var i = 0; i < path.length; i++) {
+    Controller.getVariableFrom = function (variableStr, scope) {
+        var path = variableStr.split("."), variable = scope, i;
+        for (i = 0; i < path.length; i++) {
+            if (variable instanceof Object) {
                 variable = variable[path[i]];
+            } else {
+                return undefined;
             }
-        } catch(e){
-            return undefined;
         }
 
         return variable;
     };
 
-    Controller.prototype.makeSafeForDisplay = function(variable){
-        if(variable === undefined
-            || variable === null){
+    Controller.makeSafeForDisplay = function (variable) {
+        if (variable === undefined
+            || variable === null) {
             variable = "";
         }
 
         return variable;
-    }
+    };
 
-    Controller.prototype.initTemplateFrom = function(ctrlElement){
+    Controller.prototype.initTemplateFrom = function (ctrlElement) {
         this.ctrlElement = ctrlElement;
         this.initTemplateOnNode(ctrlElement);
 
     };
 
-    Controller.prototype.initTemplateOnNode = function(element){
-        var hbattribute = element.getAttribute("hb-repeat");
-        if(!hbattribute){
-            var childs = [], variables;
+    Controller.prototype.initTemplateOnNode = function (element) {
+        var hbattribute = element.getAttribute("hb-repeat"),
+            childs = [], i;
+
+        if (!hbattribute) {
             mergeArray(childs, element.childNodes);
 
-            for (var i = 0; i < childs.length; i++) {
-                if(typeof childs[i].wholeText === "string"){
+            for (i = 0; i < childs.length; i++) {
+                if (typeof childs[i].wholeText === "string") {
                     this.initTemplateOnText(childs[i]);
                 } else {
                     this.initTemplateOnNode(childs[i]);
@@ -107,10 +95,11 @@ var htmlbindings = {};
         }
     };
 
-    Controller.prototype.initTemplateOnText = function(text){
-        variables = Controller.getVariablesTextReferencesFromText(text);
+    Controller.prototype.initTemplateOnText = function (text) {
+        var variables = Controller.getVariablesTextReferencesFromText(text),
+            variable;
 
-        for(var variable in variables){
+        for(variable in variables) {
             this.initVariable(variable);
             mergeObject(
                 this.variables[variable],
@@ -118,20 +107,21 @@ var htmlbindings = {};
         }
     };
 
-    Controller.prototype.initRepeatTemplateOnNode = function(element, repeat){
-        var repeatVariable = repeat.match(Controller.HB_REPEATS_REG);
-        if(!repeatVariable){
+    Controller.prototype.initRepeatTemplateOnNode = function (element, repeat) {
+        var repeatVariable = repeat.match(Controller.HB_REPEATS_REG),
+            nextElement, i, variable, texts, variables;
+
+        if (!repeatVariable) {
             _throw("InvalidHBRepeat", repeat);
         }
 
-        var nextElement;
-        for (var i = 0; i < element.parentNode.childNodes.length; i++) {
-            if(element.parentNode.childNodes[i] === element){
+        for (i = 0; i < element.parentNode.childNodes.length; i++) {
+            if (element.parentNode.childNodes[i] === element) {
                 nextElement = element.parentNode.childNodes[i+1] || null;
             }
         }
 
-        var repeat = {
+        repeat = {
             dst: repeatVariable[1],
             src: repeatVariable[2],
             parent: element.parentNode,
@@ -143,11 +133,11 @@ var htmlbindings = {};
 
         repeat.tree.removeAttribute("hb-repeat");
 
-        var texts = Controller._getAllTexts(repeat.tree), variables;
-        for (var i = 0; i < texts.length; i++) {
+        texts = Controller._getAllTexts(repeat.tree);
+        for (i = 0; i < texts.length; i++) {
             variables = Controller.getVariablesTextReferencesFromText(texts[i]);
-            for (var variable in variables) {
-                if(!repeat.variables[variable]){
+            for (variable in variables) {
+                if (!repeat.variables[variable]) {
                     repeat.variables[variable] = [];
                 }
 
@@ -159,54 +149,56 @@ var htmlbindings = {};
         element.parentNode.removeChild(element);
     };
 
-    Controller.prototype.applyTemplate = function(){
-        for(var variable in this.variables){
+    Controller.prototype.applyTemplate = function () {
+        var i, variable, data, textElements, repeats;
+        for(variable in this.variables) {
             repeats = this.variables[variable].repeats;
 
-            var data = this.makeSafeForDisplay(this.getVariable(variable));
+            data = Controller.makeSafeForDisplay(
+                Controller.getVariableFrom(variable, this.scope));
 
-            var textElements = this.variables[variable];
-            for (var i = 0; i < textElements.length; i++) {
+            textElements = this.variables[variable];
+            for (i = 0; i < textElements.length; i++) {
                 textElements[i].textContent = data;
             }
         }
 
-        for (var i = 0; i < this.repeats.length; i++) {
+        for (i = 0; i < this.repeats.length; i++) {
             this.applyRepeatTemplate(this.repeats[i]);
         }
     };
 
-    Controller.prototype.applyRepeatTemplate = function(repeat){
-        for (var i = 0; i < repeat.elements.length; i++) {
+    Controller.prototype.applyRepeatTemplate = function (repeat) {
+        var i, j, src, dsts, variable, data;
+        for (i = 0; i < repeat.elements.length; i++) {
             repeat.elements[i].parentNode.removeChild(repeat.elements[i]);
         }
         repeat.elements = [];
 
 
-        var src = this.getVariable(repeat.src);
-        if(!src instanceof Array){
+        src = Controller.getVariableFrom(repeat.src, this.scope);
+        if (!src instanceof Array) {
             return;
         }
 
-        var dsts = {};
-        for(var variable in repeat.variables){
-            if(variable.indexOf(repeat.dst) === 0){
-                var name = variable.substr(repeat.dst.length);
+        dsts = {};
+        for(variable in repeat.variables) {
+            if (variable.indexOf(repeat.dst) === 0) {
+                name = variable.substr(repeat.dst.length+1);
                 dsts[name] = repeat.variables[variable];
             }
         }
 
-        for (var i = 0; i < src.length; i++) {
-            for(var variable in dsts){
-                var dst = variable.split("."), data = src[i];
-                dst.shift();
-
-                for (var j = 0; j < dst.length; j++) {
-                    data = data[dst[j]];
+        for (i = 0; i < src.length; i++) {
+            for(variable in dsts) {
+                if (variable.length > 0) {
+                    data = Controller.getVariableFrom(variable, src[i]);
+                } else {
+                    data = src[i];
                 }
-
-                data = this.makeSafeForDisplay(data);
-                for (var j = 0; j < dsts[variable].length; j++) {
+                
+                data = Controller.makeSafeForDisplay(data);
+                for (j = 0; j < dsts[variable].length; j++) {
                     dsts[variable][j].textContent = data;
                 }
             }
@@ -215,7 +207,7 @@ var htmlbindings = {};
         }
     };
 
-    Controller.prototype.getPublicScopeInterface = function() {
+    Controller.prototype.getPublicScopeInterface = function ()  {
         var public_scope = {};
         public_scope.$apply = Controller.publicScopeApply.bind({
             public_scope: public_scope,
@@ -226,7 +218,7 @@ var htmlbindings = {};
         return public_scope;
     };
 
-    Controller.prototype.exec = function(){
+    Controller.prototype.exec = function () {
         var public_scope = this.getPublicScopeInterface();
         this.controller(public_scope);
         public_scope.$apply();
@@ -234,11 +226,11 @@ var htmlbindings = {};
         this.applyTemplate();
     };
 
-    Controller._getAllTexts = function(element){
-        if(element.childNodes.length > 0){
-            var texts = [];
-            for (var i = 0; i < element.childNodes.length; i++) {
-                if(typeof element.childNodes[i].wholeText === "string"){
+    Controller._getAllTexts = function (element) {
+        var i, texts = [];
+        if (element.childNodes.length > 0) {
+            for (i = 0; i < element.childNodes.length; i++) {
+                if (typeof element.childNodes[i].wholeText === "string") {
                     texts.push(element.childNodes[i]);
                 } else {
                     mergeArray(
@@ -248,30 +240,31 @@ var htmlbindings = {};
             }
 
             return texts;
-        } else {
-            return [];
         }
+        
+        return [];
     };
 
-    Controller.getVariablesTextReferencesFromText = function(text, noClean){
-        var variables = text.textContent.match(Controller.VAR_REG), nodes = {};
+    Controller.getVariablesTextReferencesFromText = function (text, noClean) {
+        var variables = text.textContent.match(Controller.VAR_REG),
+            nodes = {}, i, last = text, varText, variable, index;
 
-        if(variables){
-            var last = text, varText, variable;
-            for (var i = 0; i < variables.length; i++) {
-                var index = last.textContent.indexOf(variables[i]);
-                if(index < last.textContent.length){
+        if (variables) {
+            for (i = 0; i < variables.length; i++) {
+                index = last.textContent.indexOf(variables[i]);
+                if (index < last.textContent.length){
                     varText = last.splitText(index);
                     last = varText.splitText(variables[i].length);
 
                     variable = varText.textContent.match(
                         Controller.VAR_CTN_REG)[1];
 
-                    if(!nodes[variable])
+                    if (!nodes[variable]){
                         nodes[variable] = [];
+                    }
 
                     nodes[variable].push(varText);
-                    if(!noClean){
+                    if (!noClean){
                         varText.textContent = "";
                     }
                 }
@@ -281,12 +274,13 @@ var htmlbindings = {};
         return nodes;
     };
 
-    Controller.publicScopeApply = function(){
-        delete this.public_scope.$apply;
+    Controller.publicScopeApply = function () {
+        var item;
 
+        delete this.public_scope.$apply;
         mergeObject(this.controller.scope, this.public_scope);
-        for(var item in this.public_scope){
-            if(this.public_scope.hasOwnProperty(item)){
+        for(item in this.public_scope){
+            if (this.public_scope.hasOwnProperty(item)){
                 delete this.public_scope[item];
             }
         }
@@ -301,9 +295,10 @@ var htmlbindings = {};
 
     /*==========  Miscellaneous  ==========*/
     function mergeObject(obj1, obj2){
-        for (var item in obj2) {
-            if(obj2.hasOwnProperty(item)){
-                if(obj2[item] !== null
+        var item;
+        for (item in obj2) {
+            if (obj2.hasOwnProperty(item)){
+                if (obj2[item] !== null
                     && typeof obj1[item] === "object"
                     && typeof obj2[item] === "object"){
                     mergeObject(obj1[item], obj2[item]);
@@ -315,7 +310,8 @@ var htmlbindings = {};
     }
 
     function mergeArray(arr1, arr2){
-        for (var i = 0; i < arr2.length; i++) {
+        var i;
+        for (i = 0; i < arr2.length; i++) {
             arr1.push(arr2[i]);
         }
     }
@@ -344,22 +340,22 @@ var htmlbindings = {};
     }
 
     var gErrors = {
-        ControllerNotFound: function(ctrlName){
+        ControllerNotFound: function (ctrlName) {
             this.ctrlName = ctrlName;
             this.message = "Controller '" + ctrlName + "' doesn't exist";
         },
 
-        InvalidVariable: function(variable){
+        InvalidVariable: function (variable) {
             this.variable = variable;
             this.message = "Variable {" + variable.join(".") + "} doesn't exist";
         },
 
-        InvalidHBRepeat: function(repeat){
+        InvalidHBRepeat: function (repeat) {
             this.repeat = repeat;
             this.message = '"' + repeat + '" is an invalid input for hb-repeat';
         },
 
-        NotFoundError: function(error){
+        NotFoundError: function (error) {
             this.error = error;
             this.message = "Error '" + error + "' not found";
         }
@@ -367,9 +363,23 @@ var htmlbindings = {};
 
     function stackTrace() {
         var stack = new Error().stack.split("\n");
-        if(stack[0] === "Error") stack.shift();
+        if (stack[0] === "Error"){
+            stack.shift();
+        }
         stack.shift();
         return stack.join("\n");
     }
+
+
+
+    /*==========  HTML Parsing  ==========*/
+    window.addEventListener("load", function () {
+        var doms = $$("[hb-controller]"), i, ctrlName;
+
+        for (i = doms.length - 1; i >= 0; i--) {
+            ctrlName = doms[i].getAttribute("hb-controller");
+            init_controller(ctrlName, doms[i]);
+        }
+    });
 
 })();
