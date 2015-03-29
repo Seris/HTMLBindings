@@ -8,6 +8,7 @@ var htmlbindings = {};
         $$ = document.querySelectorAll.bind(document),
         gControllers = {};
 
+    htmlbindings.currentError = null;
 
     /*==========  Controller Management  ==========*/
     /**
@@ -15,13 +16,21 @@ var htmlbindings = {};
      * @param  {string}
      * @param  {function}
      */ 
-    htmlbindings.controller = function (name, controller) {
-        if (gControllers[name]){
-            throw new Error("Controller already exist");
+    htmlbindings.controller = function (ctrlName, controller) {
+        if (gControllers[ctrlName]){
+            _throw("ControllerAlreadyExist", ctrlName);
         }
 
-        gControllers[name] = new Controller(controller);
+        gControllers[ctrlName] = new Controller(controller);
     };
+
+    htmlbindings.getControllerScope = function(ctrlName){
+        if (!gControllers[ctrlName]){
+            _throw("ControllerNotFound", ctrlName);
+        }
+
+        return gControllers[ctrlName].getPublicScopeInterface();
+    }
 
     function init_controller(ctrlName, dom) {
         if (!gControllers[ctrlName]) {
@@ -169,7 +178,7 @@ var htmlbindings = {};
     };
 
     Controller.prototype.applyRepeatTemplate = function (repeat) {
-        var i, j, src, dsts, variable, data;
+        var i, j, src, dsts, variable, data, toInject;
         for (i = 0; i < repeat.elements.length; i++) {
             repeat.elements[i].parentNode.removeChild(repeat.elements[i]);
         }
@@ -203,27 +212,40 @@ var htmlbindings = {};
                 }
             }
 
-            repeat.parent.appendChild(repeat.tree.cloneNode(true));
+            toInject = repeat.tree.cloneNode(true);
+            repeat.parent.appendChild(toInject);
+
+            repeat.elements.push(toInject);
         }
     };
 
     Controller.prototype.getPublicScopeInterface = function ()  {
-        var public_scope = {};
+        var public_scope = copyObject(this.scope);
         public_scope.$apply = Controller.publicScopeApply.bind({
             public_scope: public_scope,
             controller: this
         });
-
-        public_scope.$binded = true;
         return public_scope;
     };
 
+    Controller.publicScopeApply = function () {
+        var $apply = this.public_scope.$apply;
+        delete this.public_scope.$apply;
+
+        mergeObject(this.controller.scope, this.public_scope);
+        this.controller.applyTemplate();
+
+        this.public_scope.$apply = $apply;
+    };
+
     Controller.prototype.exec = function () {
-        var public_scope = this.getPublicScopeInterface();
+        var public_scope = this.getPublicScopeInterface(), item;
         this.controller(public_scope);
         public_scope.$apply();
 
-        this.applyTemplate();
+        for (item in public_scope){
+            delete public_scope[item];
+        }
     };
 
     Controller._getAllTexts = function (element) {
@@ -274,26 +296,28 @@ var htmlbindings = {};
         return nodes;
     };
 
-    Controller.publicScopeApply = function () {
-        var item;
-
-        delete this.public_scope.$apply;
-        mergeObject(this.controller.scope, this.public_scope);
-        for(item in this.public_scope){
-            if (this.public_scope.hasOwnProperty(item)){
-                delete this.public_scope[item];
-            }
-        }
-
-        this.public_scope.$binded = false;
-    };
-
     Controller.VAR_REG = /\{\{?\s[a-z0-9?\.]*?\s\}\}/gi;
     Controller.VAR_CTN_REG = /\{\{?\s([a-z0-9?\.]*)?\s\}\}/i;
     Controller.HB_REPEATS_REG = /([a-z0-9?\.]*) in ([a-z0-9?\.]*)/i;
 
 
     /*==========  Miscellaneous  ==========*/
+    function copyObject(obj){
+        var item, copy = {};
+        for (item in obj) {
+            if (obj.hasOwnProperty(item)){
+                if (obj[item] !== null
+                    && typeof obj[item] === "object"){
+                    copy[item] = copyObject(obj[item]);
+                } else {
+                    copy[item] = obj[item];
+                }
+            }
+        }
+
+        return copy;
+    }
+
     function mergeObject(obj1, obj2){
         var item;
         for (item in obj2) {
@@ -326,7 +350,7 @@ var htmlbindings = {};
             error = new gErrors["NotFoundError"](type);
         }
 
-        htmlbindings.current_error = {
+        htmlbindings.currentError = {
             type: type,
             err: error
         };
@@ -340,6 +364,11 @@ var htmlbindings = {};
     }
 
     var gErrors = {
+        ControllerAlreadyExist: function (ctrlName) {
+            this.ctrlName = ctrlName;
+            this.message = "Controller '" + ctrlName + "' already exist";
+        },
+
         ControllerNotFound: function (ctrlName) {
             this.ctrlName = ctrlName;
             this.message = "Controller '" + ctrlName + "' doesn't exist";

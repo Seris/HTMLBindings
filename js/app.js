@@ -1,4 +1,8 @@
+var scope;
+
 htmlbindings.controller("BodyCtrl", function($scope){
+    scope = $scope;
+
     $scope.title = "HTML Bindings";
 
     $scope.tracks = [
