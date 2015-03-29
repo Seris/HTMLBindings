@@ -1,4 +1,6 @@
 htmlbindings.controller("BodyCtrl", function($scope){
+    $scope.title = "HTML Bindings";
+
     $scope.tracks = [
         {
             name: "Beyond the Horizon",
