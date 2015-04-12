@@ -1,24 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>HTML Bindings</title>
-    <script text="text/javascript" src="js/html-bindings.js"></script>
-    <script text="text/javascript" src="js/app.js"></script>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>HTML Bindings</title>
 </head>
-<body hb-controller="BodyCtrl">
-    <h1>{{ title }}</h1>
-    <div>
-        <span hb-repeat="track in tracks">
-            {{ track.name }} <small>{{ track.artist }}</small><br>
-        </span>
+<body hb-scope="BodyScope">
+	<h1> {{ title }}</h1>
 
+    <div hb-repeat="track in tracks">
+        <h3>{{ track.name }} - <small>{{ track.artist }}</small></h3>
+        Comments:
+        <ul>
+            <li hb-repeat="comment in track.comments">
+                <p>{{ comment.message }} <small>({{ comment.author }})</small></p>
+            </li>
+        </ul>
     </div>
 
-    <div>
-        <div><span></span></div>
-        <img src="" alt="">
-    </div>
-</body>
+    <script type="text/javascript" src="js/htmlbindings.js"></script>
 </html>
